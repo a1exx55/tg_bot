@@ -2,7 +2,7 @@
 
 #include <config.hpp>
 #include <logging.hpp>
-#include <keyboard_markups.hpp>
+#include <keyboard_utils.hpp>
 #include <tg_bot_utils.hpp>
 
 #include <format>
@@ -60,7 +60,7 @@ namespace handlers
             "— *_System controls_* provides different abilities to manage system and control its status\\.", 
             nullptr, 
             nullptr, 
-            keyboard_markups::main_reply_kb_markup,
+            keyboard::markup::reply::main,
             "MarkdownV2");
     }
     catch(const std::exception& e)
@@ -76,7 +76,7 @@ namespace handlers
             "System info commands:", 
             nullptr, 
             nullptr, 
-            keyboard_markups::system_info_inline_kb_markup);
+            keyboard::markup::inline_::system_info);
     }
     catch(const std::exception& e)
     {
@@ -93,7 +93,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::system_info_inline_kb_markup);
+            keyboard::markup::inline_::system_info);
     }
     catch(const std::exception& e)
     {
@@ -108,7 +108,7 @@ namespace handlers
             "System controls' commands:", 
             nullptr, 
             nullptr, 
-            keyboard_markups::system_controls_inline_kb_markup);
+            keyboard::markup::inline_::system_controls);
     }
     catch(const std::exception& e)
     {
@@ -125,7 +125,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::system_controls_inline_kb_markup);
+            keyboard::markup::inline_::system_controls);
     }
     catch(const std::exception& e)
     {
@@ -206,7 +206,7 @@ namespace handlers
             "", 
             "MarkdownV2",
             nullptr,
-            keyboard_markups::return_to_system_info_inline_kb_markup);
+            keyboard::markup::inline_::return_to_system_info);
     }
     catch(const std::exception& e)
     {
@@ -229,7 +229,7 @@ namespace handlers
                 "",
                 "",
                 nullptr,
-                keyboard_markups::return_to_system_info_inline_kb_markup); 
+                keyboard::markup::inline_::return_to_system_info);
         }
         else
         {
@@ -249,7 +249,7 @@ namespace handlers
                 "",
                 "",
                 nullptr,
-                keyboard_markups::construct_pm2_logs_processes_inline_kb_markup(pm2_processes_data)); 
+                keyboard::markup::inline_::construct_pm2_logs_processes(pm2_processes_data));
         }
     }
     catch(const std::exception& e)
@@ -270,7 +270,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::return_to_pm2_logs_inline_kb_markup);
+            keyboard::markup::inline_::return_to_pm2_logs);
     }
     catch(const std::exception& e)
     {
@@ -280,25 +280,25 @@ namespace handlers
     void get_system_metrics(const TgBot::Api& bot_api, const TgBot::CallbackQuery::Ptr callback)
     try
     {
-        static std::string cpu_temp_command = 
+        static const std::string cpu_temp_command =
             R"(sensors | awk '/Core/ {sum+=$3; count++} END {printf "%.2f°C", sum/count}')";
 
         std::string message = "*CPU temperature:* " + tg_bot_utils::escape_markdown_message(
             execute_terminal_command(cpu_temp_command));
 
-        static std::string cpu_usage_command = 
+        static const std::string cpu_usage_command =
             R"(cat /proc/stat | grep cpu | tail -1 | awk '{print ($5*100)/($2+$3+$4+$5+$6+$7+$8+$9+$10)}'| awk '{printf "%.2f%%",100-$1}')";
 
         message += "\n\n*CPU usage:* " + tg_bot_utils::escape_markdown_message(
             execute_terminal_command(cpu_usage_command));
 
-        static std::string ram_usage_command = 
+        static const std::string ram_usage_command =
             R"(free -h --si | awk '/Mem/ {printf "%s/%s",$3,$2}')";
 
         message += "\n\n*RAM usage:* " + tg_bot_utils::escape_markdown_message(
             execute_terminal_command(ram_usage_command));
 
-        static std::string fs_usage_command = 
+        static const std::string fs_usage_command =
             R"(df -h / | tail -1 | awk '{printf "%s/%s",$3,$2}')";
 
         message += "\n\n*Filesystem usage:* " + tg_bot_utils::escape_markdown_message(
@@ -311,9 +311,72 @@ namespace handlers
             "", 
             "MarkdownV2",
             nullptr,
-            keyboard_markups::return_to_system_info_inline_kb_markup);
+            keyboard::markup::inline_::return_to_system_info);
     }
     catch(const std::exception& e)
+    {
+        logging::log_error(e.what());
+    }
+
+    void choose_process_workload_option(const TgBot::Api& bot_api, const TgBot::CallbackQuery::Ptr callback)
+    try
+    {
+        bot_api.editMessageText(
+            "Choose what to sort the process workload by:",
+            callback->from->id,
+            callback->message->messageId,
+            "",
+            "",
+            nullptr,
+            keyboard::markup::inline_::process_workload);
+    }
+    catch (const std::exception& e)
+    {
+        logging::log_error(e.what());
+    }
+
+    void get_process_workload_by_cpu(const TgBot::Api& bot_api, const TgBot::CallbackQuery::Ptr callback)
+    try
+    {
+        static const std::string process_workload_by_cpu_command =
+            R"(ps -eo pid,comm,%cpu,%mem --sort=-%cpu | grep -v "ps" | head -n 11 | awk 'NR==1 {printf "%-8s %-15s %6s %7s\n", "PID", "Process name", "CPU", "RAM"} NR>1 {printf "%-8s %-15s %6.1f%% %6.1f%%\n", $1, $2, $3, $4}')";
+
+        bot_api.editMessageText(
+            std::format(
+                "```\n{}\n```",
+                tg_bot_utils::escape_markdown_message(
+                    execute_terminal_command(process_workload_by_cpu_command))),
+            callback->from->id,
+            callback->message->messageId,
+            "",
+            "MarkdownV2",
+            nullptr,
+            keyboard::markup::inline_::return_to_process_workload);
+    }
+    catch (const std::exception& e)
+    {
+        logging::log_error(e.what());
+    }
+
+    void get_process_workload_by_ram(const TgBot::Api& bot_api, const TgBot::CallbackQuery::Ptr callback)
+        try
+    {
+        static const std::string process_workload_by_ram_command =
+            R"(ps -eo pid,comm,%cpu,%mem --sort=-%mem | grep -v "ps" | head -n 11 | awk 'NR==1 {printf "%-8s %-15s %6s %7s\n", "PID", "Process name", "CPU", "RAM"} NR>1 {printf "%-8s %-15s %6.1f%% %6.1f%%\n", $1, $2, $3, $4}')";
+
+        bot_api.editMessageText(
+            std::format(
+            "```\n{}\n```",
+            tg_bot_utils::escape_markdown_message(
+            execute_terminal_command(process_workload_by_ram_command))),
+            callback->from->id,
+            callback->message->messageId,
+            "",
+            "MarkdownV2",
+            nullptr,
+            keyboard::markup::inline_::return_to_process_workload);
+    }
+    catch (const std::exception& e)
     {
         logging::log_error(e.what());
     }
@@ -321,7 +384,7 @@ namespace handlers
     void check_if_reboot_required(const TgBot::Api& bot_api, const TgBot::CallbackQuery::Ptr callback)
     try
     {
-        static std::string reboot_required_command = 
+        static const std::string reboot_required_command =
         R"(
             FILE=/var/run/reboot-required
             if [ -f "$FILE" ]; then
@@ -338,7 +401,7 @@ namespace handlers
             "", 
             "MarkdownV2",
             nullptr,
-            keyboard_markups::return_to_system_info_inline_kb_markup);
+            keyboard::markup::inline_::return_to_system_info);
     }
     catch(const std::exception& e)
     {
@@ -353,7 +416,7 @@ namespace handlers
             callback->from->id,
             callback->message->messageId);
         
-        static std::string available_updates =
+        static const std::string available_updates =
             "apt update &> /dev/null && apt list --upgradable 2> /dev/null | wc -l";
 
         bot_api.editMessageText(
@@ -365,7 +428,7 @@ namespace handlers
             "", 
             "MarkdownV2",
             nullptr,
-            keyboard_markups::return_to_system_info_inline_kb_markup);
+            keyboard::markup::inline_::return_to_system_info);
     }
     catch(const std::exception& e)
     {
@@ -380,7 +443,7 @@ namespace handlers
             callback->from->id, 
             callback->message->messageId);
         
-        static std::string update_command = 
+        static const std::string update_command =
             R"(apt update &> /dev/null && apt upgrade -y 2> /dev/null | grep -Po "\d+ (?:not )?upgraded" | awk '{print $1, "packages were", ($2 == "upgraded" ? "upgraded" : "not upgraded")}')";
 
         bot_api.editMessageText(
@@ -390,7 +453,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::return_to_system_controls_inline_kb_markup);
+            keyboard::markup::inline_::return_to_system_controls);
     }
     catch(const std::exception& e)
     {
@@ -407,7 +470,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::pm2_tools_inline_kb_markup);
+            keyboard::markup::inline_::pm2_tools);
     }
     catch(const std::exception& e)
     {
@@ -430,7 +493,7 @@ namespace handlers
                 "",
                 "",
                 nullptr,
-                keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                keyboard::markup::inline_::return_to_pm2_tools);
         }
         else
         {
@@ -455,7 +518,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                    keyboard::markup::inline_::return_to_pm2_tools);
             }
             else
             {
@@ -466,7 +529,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::construct_pm2_tools_processes_inline_kb_markup(
+                    keyboard::markup::inline_::construct_pm2_tools_processes(
                         pm2_processes_to_start_data, 
                         "start_pm2_process_")); 
             }
@@ -489,7 +552,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::return_to_pm2_tools_inline_kb_markup);
+            keyboard::markup::inline_::return_to_pm2_tools);
 
         execute_terminal_command(std::format("pm2 start {}", pm2_process_id));
     }
@@ -514,7 +577,7 @@ namespace handlers
                 "",
                 "",
                 nullptr,
-                keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                keyboard::markup::inline_::return_to_pm2_tools);
         }
         else
         {
@@ -539,7 +602,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                    keyboard::markup::inline_::return_to_pm2_tools);
             }
             else
             {
@@ -550,7 +613,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::construct_pm2_tools_processes_inline_kb_markup(
+                    keyboard::markup::inline_::construct_pm2_tools_processes(
                         pm2_processes_to_stop_data, 
                         "stop_pm2_process_")); 
             }
@@ -573,7 +636,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::return_to_pm2_tools_inline_kb_markup);
+            keyboard::markup::inline_::return_to_pm2_tools);
 
         execute_terminal_command(std::format("pm2 stop {}", pm2_process_id));
     }
@@ -598,7 +661,7 @@ namespace handlers
                 "",
                 "",
                 nullptr,
-                keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                keyboard::markup::inline_::return_to_pm2_tools);
         }
         else
         {
@@ -623,7 +686,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::return_to_pm2_tools_inline_kb_markup); 
+                    keyboard::markup::inline_::return_to_pm2_tools);
             }
             else
             {
@@ -634,7 +697,7 @@ namespace handlers
                     "",
                     "",
                     nullptr,
-                    keyboard_markups::construct_pm2_tools_processes_inline_kb_markup(
+                    keyboard::markup::inline_::construct_pm2_tools_processes(
                         pm2_processes_to_restart_data, 
                         "restart_pm2_process_")); 
             }
@@ -657,7 +720,7 @@ namespace handlers
             "", 
             "",
             nullptr,
-            keyboard_markups::return_to_pm2_tools_inline_kb_markup);
+            keyboard::markup::inline_::return_to_pm2_tools);
 
         execute_terminal_command(std::format("pm2 restart {}", pm2_process_id));
     }
@@ -676,7 +739,7 @@ namespace handlers
             "", 
             "", 
             nullptr, 
-            keyboard_markups::reboot_system_verification_inline_kb_markup);
+            keyboard::markup::inline_::reboot_system_verification);
     }
     catch(const std::exception& e)
     {
@@ -712,7 +775,7 @@ namespace handlers
             "", 
             "", 
             nullptr, 
-            keyboard_markups::shutdown_system_verification_inline_kb_markup);
+            keyboard::markup::inline_::shutdown_system_verification);
     }
     catch(const std::exception& e)
     {
@@ -760,31 +823,34 @@ namespace handlers
         tg_bot_utils::register_message_handlers(
             bot,
             {
-                {keyboard_markups::system_info_btn->text, send_system_info},
-                {keyboard_markups::system_controls_btn->text, send_system_controls}
+                {keyboard::button::reply::system_info->text, send_system_info},
+                {keyboard::button::reply::system_controls->text, send_system_controls}
             },
             validate_user_by_message);
 
         tg_bot_utils::register_callback_handlers(
             bot,
             {
-                {keyboard_markups::return_to_system_info_btn->callbackData, return_to_system_info},
-                {keyboard_markups::return_to_system_controls_btn->callbackData, return_to_system_controls},
-                {keyboard_markups::pm2_status_btn->callbackData, get_pm2_status},
-                {keyboard_markups::pm2_logs_btn->callbackData, choose_pm2_logs_process},
-                {keyboard_markups::system_metrics_btn->callbackData, get_system_metrics},
-                {keyboard_markups::reboot_required_btn->callbackData, check_if_reboot_required},
-                {keyboard_markups::updates_available_btn->callbackData, check_if_updates_available},
-                {keyboard_markups::update_packages_btn->callbackData, update_packages},
-                {keyboard_markups::pm2_tools_btn->callbackData, get_pm2_tools},
-                {keyboard_markups::start_pm2_process_btn->callbackData, choose_pm2_process_to_start},
-                {keyboard_markups::stop_pm2_process_btn->callbackData, choose_pm2_process_to_stop},
-                {keyboard_markups::restart_pm2_process_btn->callbackData, choose_pm2_process_to_restart},
-                {keyboard_markups::reboot_system_btn->callbackData, verify_system_reboot},
-                {keyboard_markups::verify_system_reboot_btn->callbackData, reboot_system},
-                {keyboard_markups::cancel_system_controls_command_btn->callbackData, return_to_system_controls},
-                {keyboard_markups::shutdown_system_btn->callbackData, verify_system_shutdown},
-                {keyboard_markups::verify_system_shutdown_btn->callbackData, shutdown_system},
+                {keyboard::button::inline_::return_to_system_info->callbackData, return_to_system_info},
+                {keyboard::button::inline_::return_to_system_controls->callbackData, return_to_system_controls},
+                {keyboard::button::inline_::pm2_status->callbackData, get_pm2_status},
+                {keyboard::button::inline_::pm2_logs->callbackData, choose_pm2_logs_process},
+                {keyboard::button::inline_::system_metrics->callbackData, get_system_metrics},
+                {keyboard::button::inline_::process_workload->callbackData, choose_process_workload_option},
+                {keyboard::button::inline_::process_workload_by_cpu->callbackData, get_process_workload_by_cpu},
+                {keyboard::button::inline_::process_workload_by_ram->callbackData, get_process_workload_by_ram},
+                {keyboard::button::inline_::reboot_required->callbackData, check_if_reboot_required},
+                {keyboard::button::inline_::updates_available->callbackData, check_if_updates_available},
+                {keyboard::button::inline_::update_packages->callbackData, update_packages},
+                {keyboard::button::inline_::pm2_tools->callbackData, get_pm2_tools},
+                {keyboard::button::inline_::start_pm2_process->callbackData, choose_pm2_process_to_start},
+                {keyboard::button::inline_::stop_pm2_process->callbackData, choose_pm2_process_to_stop},
+                {keyboard::button::inline_::restart_pm2_process->callbackData, choose_pm2_process_to_restart},
+                {keyboard::button::inline_::reboot_system->callbackData, verify_system_reboot},
+                {keyboard::button::inline_::verify_system_reboot->callbackData, reboot_system},
+                {keyboard::button::inline_::cancel_system_controls_command->callbackData, return_to_system_controls},
+                {keyboard::button::inline_::shutdown_system->callbackData, verify_system_shutdown},
+                {keyboard::button::inline_::verify_system_shutdown->callbackData, shutdown_system},
             },
             tg_bot_utils::text_comparison_policy::equal,
             validate_user_by_callback);

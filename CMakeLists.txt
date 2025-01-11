@@ -16,7 +16,7 @@ find_package(OpenSSL REQUIRED)
 #include all source files
 set(SRC 
 	src/main.cpp
-	src/keyboard_markups.cpp
+	src/keyboard_utils.cpp
 	src/handlers.cpp
 	)
 

@@ -4,7 +4,7 @@
 #include <config.hpp>
 #include <logging.hpp>
 #include <handlers.hpp>
-#include <keyboard_markups.hpp>
+#include <keyboard_utils.hpp>
 
 #include <signal.h>
 #include <iostream>
@@ -28,7 +28,7 @@ void setup_bot()
 
         TgBot::Bot bot(config::bot_token);
 
-        keyboard_markups::construct_kb_markups();
+        keyboard::markup::construct_markups();
         handlers::register_handlers(bot);
 
         bot.getApi().deleteWebhook();
